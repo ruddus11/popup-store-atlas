@@ -40,7 +40,7 @@
 1. 이 디렉터리를 GitHub 저장소로 푸시한다.
 2. Render 대시보드에서 `Blueprint` 또는 `Web Service + Postgres` 생성 시 루트의 `render.yaml` 을 사용한다.
 3. 생성되는 Web Service 이름은 `popup-store-api`, DB 이름은 `popup-store-db` 다.
-4. Render는 배포 전에 `python -m backend.init_db` 를 실행해 `postgis` 확장과 `popup_stores` 테이블을 초기화한다.
+4. 무료 플랜에서는 `pre-deploy command` 를 지원하지 않으므로, 서비스와 DB가 생성된 뒤 로컬에서 `python -m backend.init_db` 를 한 번 실행해 `postgis` 확장과 `popup_stores` 테이블을 초기화한다.
 5. 배포 완료 후 백엔드 URL은 `https://...onrender.com` 형태가 된다.
 6. 이 URL을 Vercel 환경변수 `VITE_API_BASE_URL` 로 넣고 프런트를 다시 배포한다.
 

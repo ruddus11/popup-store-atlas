@@ -4,7 +4,6 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    preDeployCommand: python -m backend.init_db
     startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -19,4 +18,3 @@ databases:
   - name: popup-store-db
     plan: free
     postgresMajorVersion: "15"
-
