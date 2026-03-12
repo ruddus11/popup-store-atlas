@@ -10,6 +10,7 @@ from crawler.constants import CSV_HEADERS, REJECTED_HEADERS
 from crawler.http import build_session, fetch_html
 from crawler.io_utils import write_rows
 from crawler.pipeline import normalize_candidate
+from crawler.url_utils import validate_source_url
 
 
 def load_seed_urls(config_path: Path) -> list[str]:
@@ -39,9 +40,14 @@ def run_crawl(
     rejected_rows: list[dict[str, str]] = []
 
     for seed_url in load_seed_urls(config_path):
-        adapter = select_adapter(seed_url)
-        html = fetch_html(session, seed_url, timeout=timeout)
-        candidates = adapter.parse(html, seed_url)
+        normalized_seed_url, error = validate_source_url(seed_url)
+        if error:
+            raise ValueError(f"Invalid seed URL '{seed_url}': {error}")
+
+        assert normalized_seed_url is not None
+        adapter = select_adapter(normalized_seed_url)
+        html = fetch_html(session, normalized_seed_url, timeout=timeout)
+        candidates = adapter.parse(html, normalized_seed_url)
         for candidate in candidates:
             accepted, rejected = normalize_candidate(candidate)
             if accepted:
@@ -92,4 +98,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

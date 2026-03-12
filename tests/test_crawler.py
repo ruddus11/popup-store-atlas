@@ -2,6 +2,7 @@ from pathlib import Path
 
 from crawler.adapters.marieclaire import MarieClaireAdapter
 from crawler.adapters.tistory import TistoryAdapter
+from crawler.models import RawPopupCandidate
 from crawler.pipeline import normalize_candidate
 
 
@@ -43,3 +44,25 @@ def test_tistory_adapter_extracts_addressed_items_only_after_normalization() -> 
     assert len(rejected) == 1
     assert rejected[0].reason == "missing_address"
 
+
+def test_adapter_domain_matching_rejects_suffix_attack_hosts() -> None:
+    adapter = MarieClaireAdapter()
+
+    assert adapter.matches("https://www.marieclairekorea.com/article") is True
+    assert adapter.matches("https://evilmarieclairekorea.com/article") is False
+
+
+def test_normalize_candidate_rejects_untrusted_source_url() -> None:
+    row, rejected = normalize_candidate(
+        RawPopupCandidate(
+            name="AHC",
+            address="서울 성동구 연무장11길 13",
+            raw_period="2025.02.21~2025.03.03",
+            source_url="javascript:alert(1)",
+            source_domain="marieclairekorea.com",
+        )
+    )
+
+    assert row is None
+    assert rejected is not None
+    assert rejected.reason == "unsupported_source_scheme"

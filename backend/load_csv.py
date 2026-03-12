@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import psycopg2
 import requests
+
+from crawler.url_utils import validate_source_url
 
 
 INSERT_SQL = """
@@ -90,6 +93,29 @@ class KakaoLocalGeocoder:
         latitude = float(first_hit["y"])
         longitude = float(first_hit["x"])
         return latitude, longitude
+
+
+def describe_request_exception(exc: requests.RequestException) -> str:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return exc.__class__.__name__
+
+    parts = [f"{exc.__class__.__name__}:{response.status_code}"]
+
+    try:
+        payload = response.json()
+    except json.JSONDecodeError:
+        payload = None
+
+    if isinstance(payload, dict):
+        error_type = payload.get("errorType")
+        message = payload.get("message")
+        if error_type:
+            parts.append(str(error_type))
+        if message:
+            parts.append(str(message))
+
+    return ":".join(parts)
 
 
 def default_database_url() -> str:
@@ -186,6 +212,25 @@ def load_csv_to_db(
     with psycopg2.connect(database_url) as connection:
         with connection.cursor() as cursor:
             for row in rows:
+                validated_source_url, source_url_error = validate_source_url(
+                    row.source_url,
+                    allowed_domains=(row.source_domain,),
+                )
+                if source_url_error:
+                    failures.append(
+                        {
+                            "name": row.name,
+                            "address": row.address,
+                            "start_date": row.start_date,
+                            "end_date": row.end_date,
+                            "source_url": row.source_url,
+                            "reason": source_url_error,
+                        }
+                    )
+                    continue
+
+                row.source_url = validated_source_url
+
                 try:
                     coordinates = geocoder.geocode(row.address)
                 except requests.RequestException as exc:
@@ -196,7 +241,7 @@ def load_csv_to_db(
                             "start_date": row.start_date,
                             "end_date": row.end_date,
                             "source_url": row.source_url,
-                            "reason": f"kakao_error:{exc.__class__.__name__}",
+                            "reason": f"kakao_error:{describe_request_exception(exc)}",
                         }
                     )
                     continue
@@ -233,19 +278,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
     )
     parser.add_argument("--database-url", default=default_database_url())
-    parser.add_argument("--kakao-api-key", default=os.getenv("KAKAO_REST_API_KEY", ""))
     return parser
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
-    if not args.kakao_api_key:
+    kakao_api_key = os.getenv("KAKAO_REST_API_KEY", "")
+    if not kakao_api_key:
         raise SystemExit("KAKAO_REST_API_KEY is required to geocode addresses.")
 
     inserted, skipped, failures = load_csv_to_db(
         csv_path=args.csv,
         database_url=args.database_url,
-        kakao_api_key=args.kakao_api_key,
+        kakao_api_key=kakao_api_key,
         failure_output=args.failure_output,
     )
     print(f"Inserted rows: {inserted}")
@@ -255,4 +300,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

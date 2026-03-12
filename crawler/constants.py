@@ -30,8 +30,12 @@ ALLOWED_REGION_PREFIXES = (
     "대전광역시",
 )
 
+ALLOWED_SOURCE_DOMAINS = (
+    "marieclairekorea.com",
+    "tistory.com",
+)
+
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 )
-

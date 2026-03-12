@@ -2,12 +2,21 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 from backend.app.config import get_settings
 from backend.app.repository import DatabasePopupRepository, PopupRepository
+from backend.app.security import (
+    SlidingWindowRateLimiter,
+    attach_rate_limit_headers,
+    attach_security_headers,
+    client_identifier,
+    rate_limit_exceeded_response,
+    should_apply_rate_limit,
+)
 
 
 class PopupItem(BaseModel):
@@ -32,19 +41,60 @@ class HealthResponse(BaseModel):
     status: str
 
 
-app = FastAPI(title="Popup Store API", version="1.0.0")
 settings = get_settings()
+app = FastAPI(
+    title="Popup Store API",
+    version="1.0.0",
+    docs_url="/docs" if settings.enable_api_docs else None,
+    redoc_url="/redoc" if settings.enable_api_docs else None,
+    openapi_url="/openapi.json" if settings.enable_api_docs else None,
+)
+rate_limiter = SlidingWindowRateLimiter(
+    limit=settings.rate_limit_max_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=[host.strip() for host in settings.allowed_hosts.split(",") if host.strip()],
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["Accept", "Content-Type"],
 )
 
 
 def get_repository() -> PopupRepository:
     return DatabasePopupRepository(database_url=get_settings().database_url)
+
+
+@app.middleware("http")
+async def add_api_security(request: Request, call_next):
+    is_api_request = should_apply_rate_limit(request)
+    decision = None
+    if is_api_request:
+        decision = rate_limiter.check(client_identifier(request))
+        if not decision.allowed:
+            response = rate_limit_exceeded_response(decision)
+            attach_security_headers(
+                response,
+                is_api_response=True,
+                is_https=request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https",
+            )
+            return response
+
+    response = await call_next(request)
+    if decision:
+        attach_rate_limit_headers(response, decision)
+
+    attach_security_headers(
+        response,
+        is_api_response=request.url.path.startswith("/api/") or request.url.path in {"/", "/health"},
+        is_https=request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https",
+    )
+    return response
 
 
 @app.get("/", response_model=HealthResponse)
@@ -63,4 +113,3 @@ def read_active_popups(
 ) -> ActivePopupsResponse:
     as_of_date, items = repository.fetch_active_popups()
     return ActivePopupsResponse(as_of_date=as_of_date, count=len(items), items=items)
-

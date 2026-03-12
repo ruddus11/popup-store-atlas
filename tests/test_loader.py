@@ -4,6 +4,7 @@ from backend.load_csv import (
     insert_popup_row,
     make_dedupe_key,
 )
+from crawler.url_utils import validate_source_url
 
 
 class FakeCursor:
@@ -47,3 +48,20 @@ def test_insert_popup_row_uses_postgis_point_insert() -> None:
     assert cursor.executed[0][1]["longitude"] == 127.0568
     assert cursor.executed[0][1]["latitude"] == 37.5432
 
+
+def test_validate_source_url_allows_subdomains_only_on_dot_boundary() -> None:
+    normalized, error = validate_source_url(
+        "https://www.marieclairekorea.com/newnew/2025/02/march-pop-up/",
+        allowed_domains=("marieclairekorea.com",),
+    )
+
+    assert error is None
+    assert normalized == "https://www.marieclairekorea.com/newnew/2025/02/march-pop-up/"
+
+    normalized, error = validate_source_url(
+        "https://evilmarieclairekorea.com/newnew/2025/02/march-pop-up/",
+        allowed_domains=("marieclairekorea.com",),
+    )
+
+    assert normalized is None
+    assert error == "unsupported_source_domain"

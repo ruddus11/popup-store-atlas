@@ -7,6 +7,7 @@ from crawler.dates import parse_date_range
 from crawler.filters import is_allowed_region
 from crawler.models import PopupRow, RawPopupCandidate, RejectedRow
 from crawler.text_utils import normalize_text
+from crawler.url_utils import validate_source_url
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
@@ -49,6 +50,20 @@ def normalize_candidate(
             source_domain=candidate.source_domain,
         )
 
+    validated_source_url, source_url_error = validate_source_url(
+        candidate.source_url,
+        allowed_domains=(candidate.source_domain,),
+    )
+    if source_url_error:
+        return None, RejectedRow(
+            reason=source_url_error,
+            name=name,
+            address=address,
+            raw_period=raw_period,
+            source_url=candidate.source_url,
+            source_domain=candidate.source_domain,
+        )
+
     if not is_allowed_region(address):
         return None, RejectedRow(
             reason="unsupported_region",
@@ -78,10 +93,9 @@ def normalize_candidate(
             address=address,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
-            source_url=candidate.source_url,
+            source_url=validated_source_url,
             source_domain=candidate.source_domain,
             collected_at=timestamp,
         ),
         None,
     )
-

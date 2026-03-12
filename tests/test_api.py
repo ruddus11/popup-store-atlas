@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from backend.app.main import app, get_repository
+from backend.app.main import app, get_repository, rate_limiter
 
 
 class FakeRepository:
@@ -46,3 +46,73 @@ def test_health_endpoint_returns_ok() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_cors_disables_credentials_for_public_api() -> None:
+    client = TestClient(app)
+
+    response = client.options(
+        "/api/popups/active",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-credentials" not in response.headers
+
+
+def test_api_responses_include_security_headers() -> None:
+    app.dependency_overrides[get_repository] = lambda: FakeRepository()
+    client = TestClient(app)
+
+    response = client.get("/api/popups/active")
+
+    app.dependency_overrides.clear()
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["content-security-policy"].startswith("default-src 'none'")
+
+
+def test_docs_are_disabled_by_default() -> None:
+    client = TestClient(app)
+
+    response = client.get("/docs")
+
+    assert response.status_code == 404
+
+
+def test_untrusted_host_is_rejected() -> None:
+    client = TestClient(app)
+
+    response = client.get("/health", headers={"host": "evil.example.com"})
+
+    assert response.status_code == 400
+
+
+def test_api_rate_limit_returns_429_after_limit() -> None:
+    app.dependency_overrides[get_repository] = lambda: FakeRepository()
+    client = TestClient(app)
+    original_limit = rate_limiter.limit
+    original_window = rate_limiter.window_seconds
+    rate_limiter.limit = 2
+    rate_limiter.window_seconds = 60
+    rate_limiter._hits.clear()
+
+    try:
+        assert client.get("/api/popups/active").status_code == 200
+        assert client.get("/api/popups/active").status_code == 200
+        third = client.get("/api/popups/active")
+    finally:
+        app.dependency_overrides.clear()
+        rate_limiter.limit = original_limit
+        rate_limiter.window_seconds = original_window
+        rate_limiter._hits.clear()
+
+    assert third.status_code == 429
+    assert third.headers["x-ratelimit-limit"] == "2"
+    assert third.headers["x-ratelimit-remaining"] == "0"

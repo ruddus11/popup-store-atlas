@@ -27,6 +27,20 @@
 - `KAKAO_REST_API_KEY`: Kakao Local REST API 키
 - `VITE_API_BASE_URL`: 프런트가 호출할 FastAPI base URL
 - `VITE_MAPBOX_ACCESS_TOKEN`: Mapbox 토큰
+- `CORS_ORIGINS`: 허용할 프런트 Origin 목록
+- `ALLOWED_HOSTS`: API가 신뢰할 Host 헤더 목록
+- `RATE_LIMIT_WINDOW_SECONDS`: API rate limit 윈도우
+- `RATE_LIMIT_MAX_REQUESTS`: 윈도우당 허용 요청 수
+- `ENABLE_API_DOCS`: `true` 일 때만 `/docs`, `/redoc`, `/openapi.json` 노출
+
+보안상 `KAKAO_REST_API_KEY` 는 CLI 인자로 넘기지 않고 환경변수로만 주입한다.
+
+추가로 기본 설정에는 다음 보안 정책이 포함된다.
+
+- 시드 URL과 원문 URL은 `https` + 허용 도메인만 통과
+- 공개 API에는 rate limiting 적용
+- API 응답에 보안 헤더 부착
+- 기본적으로 FastAPI 문서 엔드포인트 비활성화
 
 ## 테스트
 

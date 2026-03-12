@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --no-server-header
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -13,6 +13,14 @@ services:
           property: connectionString
       - key: CORS_ORIGINS
         value: https://popup-store-atlas.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+      - key: ALLOWED_HOSTS
+        value: popup-store-api.onrender.com,localhost,127.0.0.1,testserver
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "60"
+      - key: ENABLE_API_DOCS
+        value: "false"
 
 databases:
   - name: popup-store-db

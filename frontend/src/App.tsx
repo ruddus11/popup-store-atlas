@@ -38,6 +38,7 @@ const INITIAL_VIEW_STATE = {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? "";
+const ALLOWED_SOURCE_DOMAINS = ["marieclairekorea.com", "tistory.com"];
 
 function formatPeriod(popup: PopupItem) {
   return `${popup.start_date} - ${popup.end_date}`;
@@ -53,6 +54,20 @@ function buildTooltip(info: PickingInfo<PopupItem>): TooltipState | null {
     y: info.y ?? 0,
     popup: info.object
   };
+}
+
+function isSafeSourceUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") {
+      return false;
+    }
+    return ALLOWED_SOURCE_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export default function App() {
@@ -126,6 +141,10 @@ export default function App() {
   });
 
   const visibleTooltip = selected ?? hovered;
+  const visibleSourceUrl =
+    visibleTooltip && isSafeSourceUrl(visibleTooltip.popup.source_url)
+      ? visibleTooltip.popup.source_url
+      : null;
 
   return (
     <div className="page-shell">
@@ -202,9 +221,13 @@ export default function App() {
                 <p className="tooltip-title">{visibleTooltip.popup.name}</p>
                 <p>{visibleTooltip.popup.address}</p>
                 <p>{formatPeriod(visibleTooltip.popup)}</p>
-                <a href={visibleTooltip.popup.source_url} target="_blank" rel="noreferrer">
-                  원문 보기
-                </a>
+                {visibleSourceUrl ? (
+                  <a href={visibleSourceUrl} target="_blank" rel="noopener noreferrer">
+                    원문 보기
+                  </a>
+                ) : (
+                  <p>검증된 원문 링크가 없어 표시하지 않는다.</p>
+                )}
                 {selected ? (
                   <button
                     className="tooltip-close"
