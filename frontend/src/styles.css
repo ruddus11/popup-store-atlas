@@ -150,6 +150,15 @@ a {
   background: rgba(255, 252, 248, 0.8);
 }
 
+.sidebar-footnote-note {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .sidebar-footnote-label,
 .kpi-title,
 .detail-label {

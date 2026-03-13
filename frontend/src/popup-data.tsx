@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { FALLBACK_AS_OF_DATE, FALLBACK_CATALOG } from "./fallback-catalog";
+
+const API_BASE_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000")
+  : "";
+const REQUEST_TIMEOUT_MS = 12000;
 
 export type PopupStatus = "active" | "ending-soon" | "ended" | "upcoming";
 
@@ -46,6 +51,7 @@ type PopupDataContextValue = {
   endingSoon: PopupItem[];
   loading: boolean;
   error: string;
+  isFallback: boolean;
 };
 
 const PopupDataContext = createContext<PopupDataContextValue | null>(null);
@@ -120,6 +126,36 @@ function transformItem(item: RawPopupItem, asOfDate: string): PopupItem {
       (new Date(item.end_date).getTime() - new Date(asOfDate).getTime()) / (1000 * 60 * 60 * 24)
     )
   };
+}
+
+function createStateFromPayload(payload: ApiResponse, error = "", isFallback = false): PopupDataContextValue {
+  const catalog = payload.items.map((item) => transformItem(item, payload.as_of_date));
+  const livePopups = catalog.filter(
+    (popup) => popup.status === "active" || popup.status === "ending-soon"
+  );
+  const endingSoon = catalog.filter((popup) => popup.status === "ending-soon");
+
+  return {
+    asOfDate: payload.as_of_date,
+    catalog,
+    livePopups,
+    endingSoon,
+    loading: false,
+    error,
+    isFallback
+  };
+}
+
+function createFallbackState(error: string): PopupDataContextValue {
+  return createStateFromPayload(
+    {
+      as_of_date: FALLBACK_AS_OF_DATE,
+      count: FALLBACK_CATALOG.length,
+      items: [...FALLBACK_CATALOG]
+    },
+    error,
+    true
+  );
 }
 
 export function isSafeSourceUrl(url: string) {
@@ -198,14 +234,16 @@ export function PopupDataProvider({ children }: { children: ReactNode }) {
     livePopups: [],
     endingSoon: [],
     loading: true,
-    error: ""
+    error: "",
+    isFallback: false
   });
 
   useEffect(() => {
     const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort("timeout"), REQUEST_TIMEOUT_MS);
 
     const loadCatalog = async () => {
-      setState((current) => ({ ...current, loading: true, error: "" }));
+      setState((current) => ({ ...current, loading: true, error: "", isFallback: false }));
 
       try {
         const response = await fetch(`${API_BASE_URL}/api/popups/catalog`, {
@@ -216,37 +254,26 @@ export function PopupDataProvider({ children }: { children: ReactNode }) {
         }
 
         const payload = (await response.json()) as ApiResponse;
-        const catalog = payload.items.map((item) => transformItem(item, payload.as_of_date));
-        const livePopups = catalog.filter(
-          (popup) => popup.status === "active" || popup.status === "ending-soon"
-        );
-        const endingSoon = catalog.filter((popup) => popup.status === "ending-soon");
-
-        setState({
-          asOfDate: payload.as_of_date,
-          catalog,
-          livePopups,
-          endingSoon,
-          loading: false,
-          error: ""
-        });
+        setState(createStateFromPayload(payload));
       } catch (error) {
         if (controller.signal.aborted) {
+          setState(
+            createFallbackState("실시간 API 응답이 지연되어 저장된 카탈로그를 먼저 표시한다.")
+          );
           return;
         }
-        setState({
-          asOfDate: "",
-          catalog: [],
-          livePopups: [],
-          endingSoon: [],
-          loading: false,
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
+        const message = error instanceof Error ? error.message : "Unknown error";
+        setState(createFallbackState(`실시간 API 연결에 실패해 저장된 카탈로그를 표시한다. (${message})`));
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     };
 
     void loadCatalog();
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, []);
 
   return <PopupDataContext.Provider value={state}>{children}</PopupDataContext.Provider>;

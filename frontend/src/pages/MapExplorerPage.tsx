@@ -2,7 +2,7 @@ import type { PickingInfo } from "@deck.gl/core";
 import { ColumnLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
 import { Filter, MapPin, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Map } from "react-map-gl/mapbox";
 
 import { EmptyState } from "../components/EmptyState";
@@ -55,7 +55,7 @@ function statusElevation(status: PopupStatus, popularity: number) {
 }
 
 export function MapExplorerPage() {
-  const { catalog, loading } = usePopupData();
+  const { catalog, error, isFallback, loading } = usePopupData();
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
   const [hovered, setHovered] = useState<TooltipState | null>(null);
   const [search, setSearch] = useState("");
@@ -75,6 +75,17 @@ export function MapExplorerPage() {
   });
 
   const selectedPopup = catalog.find((popup) => popup.id === selectedPopupId) ?? null;
+
+  useEffect(() => {
+    if (filteredPopups.length === 0) {
+      setSelectedPopupId(null);
+      return;
+    }
+
+    if (!selectedPopupId || !filteredPopups.some((popup) => popup.id === selectedPopupId)) {
+      setSelectedPopupId(filteredPopups[0].id);
+    }
+  }, [filteredPopups, selectedPopupId]);
 
   const layer = new ColumnLayer<PopupItem>({
     id: "popup-columns-explorer",
@@ -105,6 +116,11 @@ export function MapExplorerPage() {
           <p className="page-lead">Figma 시안의 탐색 화면 구조를 현재 Deck.gl 지도에 맞게 연결했다.</p>
         </div>
       </header>
+
+      {error ? <section className="alert-card">{error}</section> : null}
+      {isFallback && !error ? (
+        <section className="alert-card">실시간 API가 늦어 저장된 카탈로그를 먼저 보여준다.</section>
+      ) : null}
 
       <section className="explorer-layout">
         <aside className="filter-panel">

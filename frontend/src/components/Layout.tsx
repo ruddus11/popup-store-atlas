@@ -12,7 +12,7 @@ const NAV_ITEMS = [
 
 export function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { asOfDate } = usePopupData();
+  const { asOfDate, isFallback } = usePopupData();
 
   return (
     <div className="app-shell">
@@ -42,6 +42,7 @@ export function Layout() {
         <div className="sidebar-footnote">
           <span className="sidebar-footnote-label">Catalog As Of</span>
           <strong>{asOfDate || "-"}</strong>
+          {isFallback ? <small className="sidebar-footnote-note">saved catalog</small> : null}
         </div>
       </aside>
 
