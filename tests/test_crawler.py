@@ -42,7 +42,31 @@ def test_tistory_adapter_extracts_addressed_items_only_after_normalization() -> 
     assert len(accepted) == 1
     assert accepted[0].name == "Soback 플래그십 스토어"
     assert len(rejected) == 1
-    assert rejected[0].reason == "missing_address"
+    assert rejected[0].reason == "missing_name"
+
+
+def test_tistory_adapter_recovers_known_venue_addresses_and_dedupes_summary_rows() -> None:
+    adapter = TistoryAdapter()
+    candidates = adapter.parse(
+        read_fixture("tistory_alias_sample.html"),
+        "https://example.tistory.com/aliases",
+    )
+
+    accepted = []
+    for candidate in candidates:
+        row, rejected_row = normalize_candidate(candidate)
+        assert rejected_row is None
+        assert row is not None
+        accepted.append(row)
+
+    assert len(accepted) == 3
+    names = [row.name for row in accepted]
+    addresses = [row.address for row in accepted]
+
+    assert "더현대 서울 – K리그 × 주토피아 팝업" in names
+    assert "서울 영등포구 여의대로 108 더현대 서울" in addresses
+    assert "서울 용산구 한강대로23길 55 아이파크몰" in addresses
+    assert "서울 성동구 연무장길" in addresses
 
 
 def test_adapter_domain_matching_rejects_suffix_attack_hosts() -> None:

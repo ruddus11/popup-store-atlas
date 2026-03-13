@@ -6,6 +6,7 @@ from datetime import date
 from bs4 import BeautifulSoup
 
 from crawler.adapters.base import BaseAdapter
+from crawler.address_hints import infer_address_from_text
 from crawler.dates import SUPPORTED_DATE_RANGE_PATTERN
 from crawler.models import RawPopupCandidate
 from crawler.text_utils import clean_heading, normalize_text
@@ -27,7 +28,6 @@ class TistoryAdapter(BaseAdapter):
         article = soup.select_one("#article-view, .entry-content") or soup
         published_date = self._extract_published_date(soup)
         parsed: list[RawPopupCandidate] = []
-        seen: set[tuple[str, str, str]] = set()
 
         for tag in article.find_all(["li", "p", "tr"]):
             text = normalize_text(tag.get_text(" ", strip=True))
@@ -35,7 +35,7 @@ class TistoryAdapter(BaseAdapter):
                 continue
 
             name = self._extract_name(tag, text)
-            address = self._extract_address(text)
+            address = self._extract_address(text, name)
             period_match = self._period_re.search(text)
             raw_period = period_match.group(0) if period_match else ""
 
@@ -50,13 +50,9 @@ class TistoryAdapter(BaseAdapter):
                 source_domain=self.domains[0],
                 published_date=published_date,
             )
-            dedupe = (candidate.name, candidate.address, candidate.raw_period)
-            if dedupe in seen:
-                continue
-            seen.add(dedupe)
             parsed.append(candidate)
 
-        return parsed
+        return self._dedupe_candidates(parsed)
 
     def _extract_published_date(self, soup: BeautifulSoup) -> date | None:
         meta = soup.find("meta", attrs={"property": "article:published_time"})
@@ -69,16 +65,21 @@ class TistoryAdapter(BaseAdapter):
             header_like = " ".join(cell.get_text(" ", strip=True) for cell in tag.find_all(["th", "td"]))
             return clean_heading(header_like)
 
+        base_text = text
         emphasized = tag.find(["b", "strong"])
         if emphasized:
-            return clean_heading(emphasized.get_text(" ", strip=True))
+            base_text = normalize_text(emphasized.get_text(" ", strip=True))
 
-        if "주소" in text:
-            return clean_heading(text.split("주소", maxsplit=1)[0])
+        if "주소" in base_text:
+            return clean_heading(base_text.split("주소", maxsplit=1)[0])
 
-        return clean_heading(text.split("(", maxsplit=1)[0])
+        period_match = self._period_re.search(base_text)
+        if period_match:
+            return clean_heading(base_text.split(period_match.group(0), maxsplit=1)[0])
 
-    def _extract_address(self, text: str) -> str:
+        return clean_heading(base_text.split("(", maxsplit=1)[0])
+
+    def _extract_address(self, text: str, name: str) -> str:
         explicit = self._explicit_address_re.search(text)
         if explicit:
             return normalize_text(explicit.group("address"))
@@ -87,4 +88,23 @@ class TistoryAdapter(BaseAdapter):
         if fallback:
             return normalize_text(fallback.group("address"))
 
-        return ""
+        return infer_address_from_text(f"{name} {text}")
+
+    def _dedupe_candidates(self, candidates: list[RawPopupCandidate]) -> list[RawPopupCandidate]:
+        deduped: list[RawPopupCandidate] = []
+        for candidate in candidates:
+            duplicate_index = next(
+                (
+                    index
+                    for index, existing in enumerate(deduped)
+                    if existing.address == candidate.address
+                    and existing.raw_period == candidate.raw_period
+                    and existing.source_url == candidate.source_url
+                ),
+                None,
+            )
+            if duplicate_index is None:
+                deduped.append(candidate)
+            continue
+
+        return deduped

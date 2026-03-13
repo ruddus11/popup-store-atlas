@@ -13,6 +13,5 @@ def normalize_text(value: str) -> str:
 
 def clean_heading(value: str) -> str:
     value = normalize_text(value)
-    value = value.strip(" -:|")
+    value = value.strip(" -:|()[]")
     return value
-

@@ -44,5 +44,49 @@ export const FALLBACK_CATALOG = [
     longitude: 126.964741503485,
     source_url: "https://www.marieclairekorea.com/newnew/2025/02/march-pop-up/",
     popularity: 100
+  },
+  {
+    id: 5,
+    name: "Chainsaw Man 전시",
+    address: "서울 마포구 양화로 188 홍대입구역",
+    start_date: "2025-07-19",
+    end_date: "2025-11-09",
+    latitude: 37.556867,
+    longitude: 126.92365,
+    source_url: "https://lulupapa.tistory.com/12",
+    popularity: 100
+  },
+  {
+    id: 6,
+    name: "Haikyuu! 10주년 기념 전시",
+    address: "서울 성동구 연무장길",
+    start_date: "2025-07-24",
+    end_date: "2025-09-21",
+    latitude: 37.54352,
+    longitude: 127.05591,
+    source_url: "https://lulupapa.tistory.com/12",
+    popularity: 100
+  },
+  {
+    id: 7,
+    name: "짱구는 못말려 팝업스토어",
+    address: "서울 용산구 한강대로23길 55 아이파크몰",
+    start_date: "2025-08-06",
+    end_date: "2025-08-20",
+    latitude: 37.52927,
+    longitude: 126.96526,
+    source_url: "https://lulupapa.tistory.com/12",
+    popularity: 100
+  },
+  {
+    id: 8,
+    name: "더현대 서울 – K리그 × 주토피아 팝업",
+    address: "서울 영등포구 여의대로 108 더현대 서울",
+    start_date: "2025-07-25",
+    end_date: "2025-08-06",
+    latitude: 37.52512,
+    longitude: 126.9283,
+    source_url: "https://lulupapa.tistory.com/12",
+    popularity: 100
   }
 ] as const;
