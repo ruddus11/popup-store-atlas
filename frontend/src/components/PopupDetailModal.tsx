@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { ExternalLink, MapPin, X } from "lucide-react";
 
 import { PopupItem, isSafeSourceUrl } from "../popup-data";
@@ -13,6 +14,27 @@ function formatDateRange(popup: PopupItem) {
 }
 
 export function PopupDetailModal({ popup, onClose }: PopupDetailModalProps) {
+  useEffect(() => {
+    if (!popup) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, popup]);
+
   if (!popup) {
     return null;
   }

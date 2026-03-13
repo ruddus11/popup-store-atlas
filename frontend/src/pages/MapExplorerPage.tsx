@@ -57,6 +57,7 @@ function statusElevation(status: PopupStatus, popularity: number) {
 export function MapExplorerPage() {
   const { catalog, error, isFallback, loading } = usePopupData();
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
+  const [modalPopupId, setModalPopupId] = useState<number | null>(null);
   const [hovered, setHovered] = useState<TooltipState | null>(null);
   const [search, setSearch] = useState("");
   const [regions, setRegions] = useState<string[]>([]);
@@ -75,10 +76,12 @@ export function MapExplorerPage() {
   });
 
   const selectedPopup = catalog.find((popup) => popup.id === selectedPopupId) ?? null;
+  const modalPopup = catalog.find((popup) => popup.id === modalPopupId) ?? null;
 
   useEffect(() => {
     if (filteredPopups.length === 0) {
       setSelectedPopupId(null);
+      setModalPopupId(null);
       return;
     }
 
@@ -86,6 +89,12 @@ export function MapExplorerPage() {
       setSelectedPopupId(filteredPopups[0].id);
     }
   }, [filteredPopups, selectedPopupId]);
+
+  useEffect(() => {
+    if (modalPopupId && !filteredPopups.some((popup) => popup.id === modalPopupId)) {
+      setModalPopupId(null);
+    }
+  }, [filteredPopups, modalPopupId]);
 
   const layer = new ColumnLayer<PopupItem>({
     id: "popup-columns-explorer",
@@ -279,7 +288,7 @@ export function MapExplorerPage() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => setSelectedPopupId(selectedPopup.id)}
+                  onClick={() => setModalPopupId(selectedPopup.id)}
                 >
                   상세 모달 열기
                 </button>
@@ -315,7 +324,7 @@ export function MapExplorerPage() {
         </div>
       </section>
 
-      <PopupDetailModal popup={selectedPopup} onClose={() => setSelectedPopupId(null)} />
+      <PopupDetailModal popup={modalPopup} onClose={() => setModalPopupId(null)} />
     </div>
   );
 }
