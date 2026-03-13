@@ -614,6 +614,12 @@ a {
   font-size: 0.88rem;
 }
 
+.map-focus-count {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .legend-row {
   display: flex;
   align-items: center;

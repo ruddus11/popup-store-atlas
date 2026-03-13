@@ -1,5 +1,5 @@
 import type { PickingInfo } from "@deck.gl/core";
-import { ColumnLayer } from "@deck.gl/layers";
+import { ColumnLayer, TextLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
 import { Filter, MapPin, Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -29,7 +29,17 @@ const MAP_CONTROLLER = {
 type TooltipState = {
   x: number;
   y: number;
-  popup: PopupItem;
+  group: PopupVenueGroup;
+};
+
+type PopupVenueGroup = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  count: number;
+  status: PopupStatus;
+  popups: PopupItem[];
 };
 
 const STATUS_OPTIONS: Array<{ value: PopupStatus; label: string }> = [
@@ -39,11 +49,11 @@ const STATUS_OPTIONS: Array<{ value: PopupStatus; label: string }> = [
   { value: "upcoming", label: "오픈 예정" }
 ];
 
-function buildTooltip(info: PickingInfo<PopupItem>): TooltipState | null {
+function buildTooltip(info: PickingInfo<PopupVenueGroup>): TooltipState | null {
   if (!info.object) {
     return null;
   }
-  return { x: info.x ?? 0, y: info.y ?? 0, popup: info.object };
+  return { x: info.x ?? 0, y: info.y ?? 0, group: info.object };
 }
 
 function columnColor(status: PopupStatus): [number, number, number, number] {
@@ -62,6 +72,43 @@ function statusElevation(status: PopupStatus, popularity: number) {
 
 function formatDateRange(popup: PopupItem) {
   return `${popup.startDate} - ${popup.endDate}`;
+}
+
+function groupStatus(popups: PopupItem[]): PopupStatus {
+  if (popups.some((popup) => popup.status === "active")) return "active";
+  if (popups.some((popup) => popup.status === "ending-soon")) return "ending-soon";
+  if (popups.some((popup) => popup.status === "upcoming")) return "upcoming";
+  return "ended";
+}
+
+function buildVenueGroups(popups: PopupItem[]): PopupVenueGroup[] {
+  const groups = new globalThis.Map<string, PopupVenueGroup>();
+
+  for (const popup of popups) {
+    const key = `${popup.lat.toFixed(6)}:${popup.lng.toFixed(6)}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.popups.push(popup);
+      existing.count += 1;
+      existing.status = groupStatus(existing.popups);
+      continue;
+    }
+
+    groups.set(key, {
+      id: key,
+      name: popup.subRegion,
+      lat: popup.lat,
+      lng: popup.lng,
+      count: 1,
+      status: popup.status,
+      popups: [popup]
+    });
+  }
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    popups: [...group.popups].sort((left, right) => left.endDate.localeCompare(right.endDate))
+  }));
 }
 
 export function MapExplorerPage() {
@@ -84,9 +131,17 @@ export function MapExplorerPage() {
 
     return matchesRegion && matchesStatus && matchesSearch;
   });
+  const venueGroups = buildVenueGroups(filteredPopups);
 
   const selectedPopup = catalog.find((popup) => popup.id === selectedPopupId) ?? null;
   const modalPopup = catalog.find((popup) => popup.id === modalPopupId) ?? null;
+  const selectedGroup =
+    selectedPopup == null
+      ? null
+      : venueGroups.find(
+          (group) => group.popups.some((popup: PopupItem) => popup.id === selectedPopup.id)
+        ) ?? null;
+  const sideListPopups: PopupItem[] = selectedGroup?.popups ?? filteredPopups;
 
   useEffect(() => {
     if (filteredPopups.length === 0) {
@@ -106,24 +161,39 @@ export function MapExplorerPage() {
     }
   }, [filteredPopups, modalPopupId]);
 
-  const layer = new ColumnLayer<PopupItem>({
+  const layer = new ColumnLayer<PopupVenueGroup>({
     id: "popup-columns-explorer",
-    data: filteredPopups,
+    data: venueGroups,
     pickable: true,
     extruded: true,
     radius: 5200,
     elevationScale: 12,
     diskResolution: 18,
     autoHighlight: true,
-    getPosition: (popup) => [popup.lng, popup.lat],
-    getElevation: (popup) => statusElevation(popup.status, popup.popularity),
-    getFillColor: (popup) => columnColor(popup.status),
+    getPosition: (group) => [group.lng, group.lat],
+    getElevation: (group) => Math.max(100, statusElevation(group.status, 42 + group.count * 18)),
+    getFillColor: (group) => columnColor(group.status),
     getLineColor: [248, 243, 238, 190],
     onHover: (info) => setHovered(buildTooltip(info)),
     onClick: (info) => {
       const tooltip = buildTooltip(info);
-      setSelectedPopupId(tooltip?.popup.id ?? null);
+      setSelectedPopupId(tooltip?.group.popups[0]?.id ?? null);
     }
+  });
+
+  const labelLayer = new TextLayer<PopupVenueGroup>({
+    id: "popup-count-labels",
+    data: venueGroups.filter((group) => group.count > 1),
+    pickable: false,
+    getPosition: (group) => [group.lng, group.lat],
+    getText: (group) => String(group.count),
+    getColor: [32, 40, 36, 255],
+    getSize: 15,
+    getTextAnchor: "middle",
+    getAlignmentBaseline: "center",
+    getPixelOffset: [0, -10],
+    fontWeight: 800,
+    billboard: true
   });
 
   return (
@@ -213,7 +283,7 @@ export function MapExplorerPage() {
               <DeckGL
                 controller={MAP_CONTROLLER}
                 initialViewState={INITIAL_VIEW_STATE}
-                layers={[layer]}
+                layers={[layer, labelLayer]}
                 style={{ position: "absolute", inset: "0" }}
               >
                 <Map mapboxAccessToken={MAPBOX_TOKEN} mapStyle="mapbox://styles/mapbox/light-v11" reuseMaps />
@@ -239,6 +309,9 @@ export function MapExplorerPage() {
                   </span>
                   <span>{formatDateRange(selectedPopup)}</span>
                 </div>
+                {selectedGroup && selectedGroup.count > 1 ? (
+                  <p className="map-focus-count">이 위치에 팝업 {selectedGroup.count}개가 겹쳐 있다.</p>
+                ) : null}
                 <button
                   type="button"
                   className="secondary-button"
@@ -254,11 +327,15 @@ export function MapExplorerPage() {
                 className="hover-card"
                 style={{ left: hovered.x + 18, top: hovered.y + 18 }}
               >
-                <p className="section-kicker">{hovered.popup.subRegion}</p>
-                <strong>{hovered.popup.name}</strong>
+                <p className="section-kicker">{hovered.group.name}</p>
+                <strong>
+                  {hovered.group.count > 1
+                    ? `이 위치에 팝업 ${hovered.group.count}개`
+                    : hovered.group.popups[0]?.name}
+                </strong>
                 <div className="hover-card-meta">
-                  <StatusBadge status={hovered.popup.status} />
-                  <span>{hovered.popup.endDate}</span>
+                  <StatusBadge status={hovered.group.status} />
+                  {hovered.group.count === 1 ? <span>{hovered.group.popups[0]?.endDate}</span> : null}
                 </div>
               </div>
             ) : null}
@@ -331,8 +408,10 @@ export function MapExplorerPage() {
             ) : null}
 
             <div className="side-list">
-              <p className="section-kicker">Matching Popups</p>
-              {filteredPopups.slice(0, 8).map((popup) => (
+              <p className="section-kicker">
+                {selectedGroup && selectedGroup.count > 1 ? "Same Location" : "Matching Popups"}
+              </p>
+              {sideListPopups.slice(0, 8).map((popup: PopupItem) => (
                 <button
                   key={popup.id}
                   type="button"
