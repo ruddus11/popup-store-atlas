@@ -1,5 +1,7 @@
+import types
 from pathlib import Path
 
+from crawler.adapters.ehyundai import EhyundaiAdapter
 from crawler.adapters.marieclaire import MarieClaireAdapter
 from crawler.adapters.tistory import TistoryAdapter
 from crawler.models import RawPopupCandidate
@@ -67,6 +69,55 @@ def test_tistory_adapter_recovers_known_venue_addresses_and_dedupes_summary_rows
     assert "서울 영등포구 여의대로 108 더현대 서울" in addresses
     assert "서울 용산구 한강대로23길 55 아이파크몰" in addresses
     assert "서울 성동구 연무장길" in addresses
+
+
+def test_ehyundai_adapter_extracts_official_popup_rows() -> None:
+    adapter = EhyundaiAdapter()
+    sample_html = "<script>var curtMblDmCd = 'D4802603419479';</script>"
+    sample_items = [
+        {
+            "evntCrdCd": "E4800000000001",
+            "evntCrdNm": "[POP-UP STORE]\n파인 슬리핑 by Asleep",
+            "evntPlceNm": "토파즈홀",
+            "evntFlrCd": {"label": "10층"},
+            "expsEvntStartDt": "20260313000000",
+            "expsEvntEndDt": "20260322000000",
+        },
+        {
+            "evntCrdCd": "E4800000000002",
+            "evntCrdNm": "3월의 채광 : 빛나는 우리 집 제안전",
+            "evntPlceNm": "대행사장",
+            "evntFlrCd": {"label": "10층"},
+            "expsEvntStartDt": "20260309000000",
+            "expsEvntEndDt": "20260315000000",
+        },
+        {
+            "evntCrdCd": "E4800000000003",
+            "evntCrdNm": "나이키 대전",
+            "evntPlceNm": "팝업 행사장",
+            "evntFlrCd": {"label": "미입력"},
+            "expsEvntStartDt": "20260313000000",
+            "expsEvntEndDt": "20260315000000",
+        },
+    ]
+
+    adapter._fetch_listing_items = types.MethodType(  # type: ignore[method-assign]
+        lambda self, mbl_dm_cd: sample_items,
+        adapter,
+    )
+
+    candidates = adapter.parse(
+        sample_html,
+        "https://www.ehyundai.com/newPortal/SN/SN_0101000.do?branchCd=B00148000&n=1",
+    )
+
+    assert len(candidates) == 2
+    assert candidates[0].name == "파인 슬리핑 by Asleep"
+    assert candidates[0].address == "경기도 성남시 분당구 판교역로146번길 20 10층 토파즈홀"
+    assert candidates[0].raw_period == "2026.03.13~2026.03.22"
+    assert candidates[0].source_url.endswith("evntCrdCd=E4800000000001&category=&page=1&branchCd=B00148000")
+    assert candidates[1].name == "나이키 대전"
+    assert candidates[1].address == "경기도 성남시 분당구 판교역로146번길 20 팝업 행사장"
 
 
 def test_adapter_domain_matching_rejects_suffix_attack_hosts() -> None:

@@ -31,6 +31,7 @@ ALLOWED_REGION_PREFIXES = (
 )
 
 ALLOWED_SOURCE_DOMAINS = (
+    "ehyundai.com",
     "marieclairekorea.com",
     "tistory.com",
 )
