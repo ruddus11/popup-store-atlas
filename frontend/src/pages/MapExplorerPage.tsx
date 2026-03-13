@@ -15,9 +15,15 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? "";
 const INITIAL_VIEW_STATE = {
   longitude: 127.35,
   latitude: 36.85,
-  zoom: 6.3,
-  pitch: 48,
-  bearing: 8
+  zoom: 6.2,
+  pitch: 8,
+  bearing: 0
+};
+
+const MAP_CONTROLLER = {
+  dragRotate: false,
+  touchRotate: false,
+  keyboard: true
 };
 
 type TooltipState = {
@@ -52,6 +58,10 @@ function statusElevation(status: PopupStatus, popularity: number) {
   if (status === "ending-soon") return popularity * 0.8;
   if (status === "upcoming") return popularity * 0.65;
   return popularity * 0.45;
+}
+
+function formatDateRange(popup: PopupItem) {
+  return `${popup.startDate} - ${popup.endDate}`;
 }
 
 export function MapExplorerPage() {
@@ -101,9 +111,9 @@ export function MapExplorerPage() {
     data: filteredPopups,
     pickable: true,
     extruded: true,
-    radius: 5800,
-    elevationScale: 24,
-    diskResolution: 24,
+    radius: 5200,
+    elevationScale: 12,
+    diskResolution: 18,
     autoHighlight: true,
     getPosition: (popup) => [popup.lng, popup.lat],
     getElevation: (popup) => statusElevation(popup.status, popup.popularity),
@@ -201,7 +211,7 @@ export function MapExplorerPage() {
           <div className="map-stage explorer-map-stage">
             {MAPBOX_TOKEN ? (
               <DeckGL
-                controller
+                controller={MAP_CONTROLLER}
                 initialViewState={INITIAL_VIEW_STATE}
                 layers={[layer]}
                 style={{ position: "absolute", inset: "0" }}
@@ -215,15 +225,40 @@ export function MapExplorerPage() {
               </div>
             )}
 
+            {selectedPopup ? (
+              <div className="map-focus-card">
+                <div className="map-focus-head">
+                  <p className="section-kicker">On Map</p>
+                  <StatusBadge status={selectedPopup.status} />
+                </div>
+                <strong>{selectedPopup.name}</strong>
+                <p>{selectedPopup.address}</p>
+                <div className="map-focus-meta">
+                  <span>
+                    {selectedPopup.region} · {selectedPopup.subRegion} · {selectedPopup.category}
+                  </span>
+                  <span>{formatDateRange(selectedPopup)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setModalPopupId(selectedPopup.id)}
+                >
+                  상세 보기
+                </button>
+              </div>
+            ) : null}
+
             {hovered ? (
               <div
                 className="hover-card"
                 style={{ left: hovered.x + 18, top: hovered.y + 18 }}
               >
+                <p className="section-kicker">{hovered.popup.subRegion}</p>
                 <strong>{hovered.popup.name}</strong>
-                <p>{hovered.popup.address}</p>
                 <div className="hover-card-meta">
                   <StatusBadge status={hovered.popup.status} />
+                  <span>{hovered.popup.endDate}</span>
                 </div>
               </div>
             ) : null}

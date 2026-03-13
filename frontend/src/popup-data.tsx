@@ -64,7 +64,7 @@ const CATEGORY_RULES: Array<[RegExp, string]> = [
   [/(fashion|ralph|marni|jordan|나이키|무신사|젠틀몬스터)/i, "패션"]
 ];
 
-const ALLOWED_SOURCE_DOMAINS = ["marieclairekorea.com", "tistory.com"];
+const ALLOWED_SOURCE_DOMAINS = ["ehyundai.com", "marieclairekorea.com", "tistory.com"];
 
 function inferRegion(address: string) {
   if (address.startsWith("서울")) return "서울";
