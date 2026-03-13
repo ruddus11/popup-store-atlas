@@ -113,3 +113,11 @@ def read_active_popups(
 ) -> ActivePopupsResponse:
     as_of_date, items = repository.fetch_active_popups()
     return ActivePopupsResponse(as_of_date=as_of_date, count=len(items), items=items)
+
+
+@app.get("/api/popups/catalog", response_model=ActivePopupsResponse)
+def read_popup_catalog(
+    repository: Annotated[PopupRepository, Depends(get_repository)],
+) -> ActivePopupsResponse:
+    as_of_date, items = repository.fetch_catalog_popups()
+    return ActivePopupsResponse(as_of_date=as_of_date, count=len(items), items=items)

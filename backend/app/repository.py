@@ -29,9 +29,30 @@ WHERE start_date <= CURRENT_DATE
 ORDER BY end_date ASC, name ASC
 """
 
+CATALOG_POPUPS_SQL = """
+SELECT
+    CURRENT_DATE AS as_of_date,
+    id,
+    name,
+    address,
+    start_date,
+    end_date,
+    latitude,
+    longitude,
+    source_url,
+    popularity
+FROM popup_stores
+WHERE latitude IS NOT NULL
+  AND longitude IS NOT NULL
+ORDER BY start_date DESC, end_date DESC, name ASC
+"""
+
 
 class PopupRepository(Protocol):
     def fetch_active_popups(self) -> tuple[str, list[dict[str, Any]]]:
+        ...
+
+    def fetch_catalog_popups(self) -> tuple[str, list[dict[str, Any]]]:
         ...
 
 
@@ -40,9 +61,15 @@ class DatabasePopupRepository:
     database_url: str
 
     def fetch_active_popups(self) -> tuple[str, list[dict[str, Any]]]:
+        return self._fetch_popups(ACTIVE_POPUPS_SQL)
+
+    def fetch_catalog_popups(self) -> tuple[str, list[dict[str, Any]]]:
+        return self._fetch_popups(CATALOG_POPUPS_SQL)
+
+    def _fetch_popups(self, sql: str) -> tuple[str, list[dict[str, Any]]]:
         with get_connection(self.database_url) as connection:
             with connection.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(ACTIVE_POPUPS_SQL)
+                cursor.execute(sql)
                 rows = cursor.fetchall()
                 if not rows:
                     cursor.execute("SELECT CURRENT_DATE AS as_of_date")

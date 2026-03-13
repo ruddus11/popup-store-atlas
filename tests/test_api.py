@@ -22,6 +22,24 @@ class FakeRepository:
             ],
         )
 
+    def fetch_catalog_popups(self):
+        return (
+            "2026-03-12",
+            [
+                {
+                    "id": 2,
+                    "name": "종료된 팝업",
+                    "address": "서울 용산구 한강대로23길 55",
+                    "start_date": "2025-02-21",
+                    "end_date": "2025-03-06",
+                    "latitude": 37.529,
+                    "longitude": 126.965,
+                    "source_url": "https://example.com/ended",
+                    "popularity": 100,
+                }
+            ],
+        )
+
 
 def test_active_popups_endpoint_returns_coordinates_as_numbers() -> None:
     app.dependency_overrides[get_repository] = lambda: FakeRepository()
@@ -46,6 +64,20 @@ def test_health_endpoint_returns_ok() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_catalog_endpoint_returns_all_popups() -> None:
+    app.dependency_overrides[get_repository] = lambda: FakeRepository()
+    client = TestClient(app)
+
+    response = client.get("/api/popups/catalog")
+
+    app.dependency_overrides.clear()
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["count"] == 1
+    assert payload["items"][0]["name"] == "종료된 팝업"
 
 
 def test_cors_disables_credentials_for_public_api() -> None:
